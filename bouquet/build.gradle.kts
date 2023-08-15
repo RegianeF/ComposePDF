@@ -49,4 +49,5 @@ dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
+    implementation("com.mxalbert.zoomable:zoomable:1.5.1")
 }

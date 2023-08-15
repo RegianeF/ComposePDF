@@ -10,7 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
-import java.util.*
+import java.net.URLDecoder
+import java.util.Date
 
 internal suspend fun Context.base64ToPdf(
     yourBase64String: String?,
@@ -32,7 +33,7 @@ internal suspend fun Context.base64ToPdf(
 internal suspend fun Context.uriToFile(
     uri: Uri,
     cacheFileName: String = generateFileName()
-): File  {
+): File {
     val file = File(cacheDir, cacheFileName)
     withContext(Dispatchers.IO) {
         val fileOutputStream = FileOutputStream(file, false)
@@ -49,6 +50,19 @@ internal suspend fun Context.uriToFile(
 
 internal fun generateFileName(): String {
     return "${Date().time}.pdf"
+}
+
+internal fun urlName(url: String): String {
+
+    val regex = """(.+)/(.+)\.(.+)""".toRegex()
+    val matchResult = regex.matchEntire(url)
+
+    return if (matchResult != null) {
+        val (directory, fileName, extension) = matchResult.destructured
+        URLDecoder.decode(fileName, "UTF-8")
+    } else {
+        "${Date().time}.pdf"
+    }
 }
 
 internal fun Modifier.size(

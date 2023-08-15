@@ -31,6 +31,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.pager.ExperimentalPagerApi
 import com.google.accompanist.pager.HorizontalPager
+import com.mxalbert.zoomable.OverZoomConfig
+import com.mxalbert.zoomable.Zoomable
+import com.mxalbert.zoomable.rememberZoomableState
 import com.rizzi.bouquet.network.getDownloadInterface
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,54 +47,62 @@ fun VerticalPDFReader(
     state: VerticalPdfReaderState,
     modifier: Modifier
 ) {
-    BoxWithConstraints(
-        modifier = modifier,
-        contentAlignment = Alignment.TopCenter
+    val zoomState = rememberZoomableState(
+        minScale = 0.5f,
+        maxScale = 6f,
+        overZoomConfig = OverZoomConfig(1f, 4f)
+    )
+
+    Zoomable(
+        state = zoomState
     ) {
-        val ctx = LocalContext.current
-        val coroutineScope = rememberCoroutineScope()
-        val lazyState = state.lazyState
-        DisposableEffect(key1 = Unit) {
-            load(
-                coroutineScope,
-                ctx,
-                state,
-                constraints.maxWidth,
-                constraints.maxHeight,
-                true
-            )
-            onDispose {
-                state.close()
+        BoxWithConstraints(
+            modifier = modifier,
+            contentAlignment = Alignment.TopCenter
+        ) {
+            val ctx = LocalContext.current
+            val coroutineScope = rememberCoroutineScope()
+            val lazyState = state.lazyState
+            DisposableEffect(key1 = Unit) {
+                load(
+                    coroutineScope,
+                    ctx,
+                    state,
+                    constraints.maxWidth,
+                    constraints.maxHeight,
+                    true
+                )
+                onDispose {
+                    state.close()
+                }
             }
-        }
-        state.pdfRender?.let { pdf ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .tapToZoomVertical(state, constraints),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                state = lazyState
-            ) {
-                items(pdf.pageCount) {
-                    val pageContent = pdf.pageLists[it].stateFlow.collectAsState().value
-                    DisposableEffect(key1 = Unit) {
-                        pdf.pageLists[it].load()
-                        onDispose {
-                            pdf.pageLists[it].recycle()
+            state.pdfRender?.let { pdf ->
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    state = lazyState
+                ) {
+                    items(pdf.pageCount) {
+                        val pageContent = pdf.pageLists[it].stateFlow.collectAsState().value
+                        DisposableEffect(key1 = Unit) {
+                            pdf.pageLists[it].load()
+                            onDispose {
+                                pdf.pageLists[it].recycle()
+                            }
                         }
-                    }
-                    when (pageContent) {
-                        is PageContentInt.PageContent -> {
-                            PdfImage(
-                                bitmap = { pageContent.bitmap.asImageBitmap() },
-                                contentDescription = pageContent.contentDescription
+                        when (pageContent) {
+                            is PageContentInt.PageContent -> {
+                                PdfImage(
+                                    bitmap = { pageContent.bitmap.asImageBitmap() },
+                                    contentDescription = pageContent.contentDescription
+                                )
+                            }
+
+                            is PageContentInt.BlankPage -> BlackPage(
+                                width = pageContent.width,
+                                height = pageContent.height
                             )
                         }
-
-                        is PageContentInt.BlankPage -> BlackPage(
-                            width = pageContent.width,
-                            height = pageContent.height
-                        )
                     }
                 }
             }
@@ -132,9 +143,7 @@ fun HorizontalPDFReader(
         }
         state.pdfRender?.let { pdf ->
             HorizontalPager(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .tapToZoomHorizontal(state, constraints),
+                modifier = Modifier.fillMaxSize(),
                 count = state.pdfPageCount,
                 state = state.pagerState,
                 userScrollEnabled = state.scale == 1f
@@ -210,7 +219,8 @@ private fun load(
                         runCatching {
                             val bufferSize = 8192
                             var downloaded = 0
-                            val file = File(context.cacheDir, generateFileName())
+                            val file = File(context.cacheDir, urlName(res.url))
+
                             val response = getDownloadInterface(
                                 res.headers
                             ).downloadFile(
